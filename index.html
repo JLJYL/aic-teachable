@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teachable Machine 視訊射箭小遊戲</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- TensorFlow.js and Teachable Machine Image Library (Pinned stable versions) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden;
+            user-select: none;
+        }
+        .font-tech {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .pulse-glow-green {
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.5);
+        }
+        .pulse-glow-amber {
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.6);
+        }
+        .pulse-glow-red {
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.8);
+        }
+    </style>
+</head>
+<body class="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col">
+
+    <!-- Global Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur shrink-0 px-4 py-2 z-40">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center space-x-3">
+                <div class="p-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg border border-indigo-500/30">
+                    <i class="fa-solid font-tech fa-crosshairs text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-wide font-tech bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                        AI ARCHERY MASTER
+                    </h1>
+                    <p class="text-[10px] text-slate-400">Teachable Machine 視訊感應 / 鍵盤觸控射箭挑戰</p>
+                </div>
+            </div>
+
+            <!-- Global Quick Stats Bar -->
+            <div class="flex items-center gap-4 font-tech bg-slate-950 px-3 py-1 rounded-full border border-slate-800 text-xs">
+                <div class="text-center">
+                    <div class="text-[9px] text-slate-400">得分 SCORE</div>
+                    <div id="ui-score" class="text-sm sm:text-base font-bold text-yellow-400">0</div>
+                </div>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <div class="text-center">
+                    <div class="text-[9px] text-slate-400">發射 SHOTS</div>
+                    <div id="ui-shots" class="text-sm sm:text-base font-bold text-indigo-400">0</div>
+                </div>
+                <div class="h-4 w-[1px] bg-slate-800"></div>
+                <div class="text-center">
+                    <div class="text-[9px] text-slate-400">靶心 BULLSEYE</div>
+                    <div id="ui-bullseye" class="text-sm sm:text-base font-bold text-emerald-400">0</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dynamic Layout Container -->
+    <main class="flex-1 min-h-0 max-w-7xl w-full mx-auto p-2 sm:p-3 md:p-4 grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 overflow-hidden">
+        
+        <!-- Left Side Control Panel (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col h-full min-h-0 overflow-hidden space-y-1.5">
+            
+            <!-- Instructions Card -->
+            <div class="glass-panel rounded-xl p-2 border border-slate-800 shrink-0">
+                <div class="flex items-center justify-between cursor-pointer" onclick="toggleInstructions()">
+                    <div class="flex items-center space-x-1.5 font-semibold text-indigo-300 text-xs">
+                        <i class="fa-solid fa-circle-info text-indigo-400"></i>
+                        <span>手勢操作說明</span>
+                    </div>
+                    <i id="instructions-chevron" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-300"></i>
+                </div>
+                <div id="instructions-content" class="mt-1.5 text-[11px] text-slate-300">
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <div class="bg-indigo-950/40 p-1.5 rounded-lg border border-indigo-800/40">
+                            <span class="text-amber-400 font-bold block mb-0.5 font-tech text-[11px]"><i class="fa-solid fa-hand text-[10px]"></i> Class 1</span>
+                            ✋ <strong>張開手掌</strong> = 拉弓瞄準鎖定
+                        </div>
+                        <div class="bg-purple-950/40 p-1.5 rounded-lg border border-purple-800/40">
+                            <span class="text-emerald-400 font-bold block mb-0.5 font-tech text-[11px]"><i class="fa-solid fa-fist-raised text-[10px]"></i> Class 2</span>
+                            ✊ <strong>握緊拳頭</strong> = 放手射箭發射
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Setup Panel -->
+            <div class="glass-panel rounded-xl p-2 border border-slate-800 space-y-1.5 shrink-0">
+                <label class="block text-[9px] font-semibold text-slate-300 font-tech uppercase tracking-wider">TEACHABLE MACHINE MODEL URL</label>
+                <div class="flex gap-1.5">
+                    <input type="text" id="model-url-input" 
+                        value="https://teachablemachine.withgoogle.com/models/-ikEAVK-4/"
+                        placeholder="https://teachablemachine.withgoogle.com/models/..." 
+                        class="flex-1 bg-slate-900 border border-slate-700 text-[11px] text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-indigo-500 font-mono transition">
+                    <button id="btn-load-model" onclick="loadModel()" 
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1 shadow-lg shadow-indigo-600/30 shrink-0">
+                        <i class="fa-solid fa-cloud-arrow-down text-[10px]"></i> 載入模型
+                    </button>
+                </div>
+
+                <!-- Dynamic Class Selector -->
+                <div id="class-mapper-container" class="hidden pt-1.5 border-t border-slate-800 space-y-1">
+                    <div class="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                        <i class="fa-solid fa-circle-check"></i> 模型載入成功！類別設定：
+                    </div>
+                    <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+                        <div>
+                            <label class="block text-slate-400 text-[9px] mb-0.5">Class 1 (✋ 張開手/拉弓):</label>
+                            <select id="select-class-draw" class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg p-1 text-[11px] focus:outline-none focus:border-indigo-500">
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 text-[9px] mb-0.5">Class 2 (✊ 握拳/放箭):</label>
+                            <select id="select-class-release" class="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-lg p-1 text-[11px] focus:outline-none focus:border-indigo-500">
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WebCam Feed & Dynamic Recognition Panel -->
+            <div class="glass-panel rounded-xl p-2 border border-slate-800 flex-1 min-h-0 flex flex-col justify-between space-y-1.5">
+                
+                <!-- WebCam Header -->
+                <div class="flex justify-between items-center shrink-0">
+                    <div class="flex items-center space-x-1.5 text-[11px] font-semibold text-slate-300">
+                        <span class="relative flex h-2 w-2">
+                          <span id="cam-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+                          <span id="cam-dot" class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span>
+                        </span>
+                        <span>鏡頭與 AI 即時辨識</span>
+                    </div>
+
+                    <!-- FSM Status Badge -->
+                    <div id="fsm-status-badge" class="px-2 py-0.5 rounded-full text-[9px] font-tech font-bold bg-slate-800 text-slate-400 border border-slate-700 transition-all duration-300">
+                        STATE: IDLE (待機)
+                    </div>
+                </div>
+
+                <!-- Video Display Container -->
+                <div class="relative w-full aspect-video max-h-[85px] sm:max-h-[100px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center shrink-0 mx-auto">
+                    <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100 hidden"></video>
+                    
+                    <div id="webcam-placeholder" class="text-center p-1 space-y-0.5">
+                        <i class="fa-solid fa-gamepad text-base text-indigo-400"></i>
+                        <p class="text-[10px] text-slate-300 font-bold">免鏡頭！可直接鍵盤/觸控試玩</p>
+                        <p class="text-[9px] text-slate-500">點擊「載入模型」可啟動 AI 手勢辨識</p>
+                    </div>
+
+                    <div id="video-overlay-lock" class="absolute inset-0 pointer-events-none border-2 border-transparent transition-all duration-300 flex items-center justify-center">
+                        <div id="lock-icon" class="opacity-0 transition-opacity duration-300">
+                            <i class="fa-solid fa-crosshairs text-2xl text-amber-400 animate-spin"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Realtime Predictions List -->
+                <div id="confidence-bars-container" class="space-y-1 min-h-0 flex-1 overflow-hidden flex flex-col justify-start">
+                    <div class="text-[11px] font-semibold text-slate-300 flex justify-between items-center pb-0.5 border-b border-slate-800 shrink-0">
+                        <span class="flex items-center gap-1 text-indigo-300"><i class="fa-solid fa-chart-line text-indigo-400"></i> AI 辨識結果與信心分數</span>
+                        <span id="fps-counter" class="font-tech text-emerald-400 text-[9px] bg-slate-900 px-1 py-0.5 rounded border border-slate-800">FPS: 0</span>
+                    </div>
+                    <div id="prediction-list" class="space-y-1 flex-1 min-h-0 overflow-y-auto pr-0.5">
+                        <div class="text-[11px] text-slate-400 italic text-center py-1.5 bg-slate-900/50 rounded-lg border border-slate-800/80">
+                            模型尚未載入，目前可直接鍵盤/點擊試玩
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="flex gap-1.5 shrink-0 pt-0.5">
+                    <button id="btn-toggle-cam" onclick="toggleWebcam()" disabled 
+                        class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-50 text-[11px] font-bold py-1 rounded-lg transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-power-off text-[10px]"></i> 開關鏡頭
+                    </button>
+                    <button onclick="resetGameStats()" 
+                        class="px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold py-1 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-left text-[10px]"></i> 重設得分
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side Archery Canvas Game Area (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col h-full min-h-0">
+            <div class="glass-panel rounded-xl p-3 md:p-4 border border-slate-800 flex-1 min-h-0 flex flex-col relative overflow-hidden">
+                
+                <!-- Game Canvas Toolbar -->
+                <div class="flex justify-between items-center mb-2 shrink-0">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-bullseye text-indigo-400"></i>
+                        <span class="text-xs sm:text-sm font-bold font-tech text-slate-200">ARCHERY RANGE CANVAS</span>
+                    </div>
+
+                    <div class="flex items-center space-x-3 text-xs font-tech">
+                        <div class="text-slate-400">風向 WIND: <span id="wind-indicator" class="text-indigo-400 font-bold">0.0 MPH</span></div>
+                        <div class="text-slate-400">距離 DIST: <span class="text-slate-200 font-bold">30m</span></div>
+                    </div>
+                </div>
+
+                <!-- Main Game Canvas Container -->
+                <div id="canvas-container" class="relative flex-1 min-h-0 w-full bg-slate-900/90 rounded-xl overflow-hidden border border-slate-800 cursor-pointer">
+                    <canvas id="archery-canvas" class="w-full h-full block"></canvas>
+                    
+                    <!-- Score Overlay Layer -->
+                    <div id="score-popup-layer" class="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden"></div>
+
+                    <!-- Audio Enable Button -->
+                    <div id="audio-enable-overlay" class="absolute bottom-3 right-3 z-10">
+                        <button onclick="enableAudio()" class="bg-indigo-600/90 hover:bg-indigo-500 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur border border-indigo-400/30 flex items-center gap-1 transition shadow-lg">
+                            <i class="fa-solid fa-volume-high"></i> 啟用音效
+                        </button>
+                    </div>
+
+                    <!-- Manual Touch Control Button -->
+                    <div class="absolute bottom-3 left-3 z-10 flex gap-2">
+                        <button id="btn-manual-draw" 
+                            onmousedown="handleManualStart(event)" 
+                            onmouseup="handleManualEnd(event)"
+                            ontouchstart="handleManualStart(event)" 
+                            ontouchend="handleManualEnd(event)"
+                            class="bg-indigo-600/90 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-lg backdrop-blur border border-indigo-400/30 flex items-center gap-1.5 shadow-lg select-none">
+                            <i class="fa-solid fa-hand-pointer"></i> 按住拉弓 / 鬆開放箭
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer Hints -->
+                <div class="mt-2 text-[10px] sm:text-[11px] text-slate-500 flex justify-between items-center shrink-0">
+                    <span>提示: 可用 <kbd class="px-1 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700 text-[9px]">Space 空格鍵</kbd> 或按住畫面進行試玩射擊</span>
+                    <span id="sound-status" class="text-emerald-400 text-[10px]"><i class="fa-solid fa-check"></i> Web Audio 準備就緒</span>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Custom Toast Message System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            let bgClass = 'bg-slate-800 text-slate-200 border-slate-700';
+            let icon = 'fa-circle-info text-indigo-400';
+
+            if (type === 'success') {
+                bgClass = 'bg-emerald-950 text-emerald-200 border-emerald-800';
+                icon = 'fa-circle-check text-emerald-400';
+            } else if (type === 'error') {
+                bgClass = 'bg-rose-950 text-rose-200 border-rose-800';
+                icon = 'fa-circle-xmark text-rose-400';
+            } else if (type === 'warning') {
+                bgClass = 'bg-amber-950 text-amber-200 border-amber-800';
+                icon = 'fa-triangle-exclamation text-amber-400';
+            }
+
+            toast.className = `pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-lg border backdrop-blur-md shadow-xl text-xs transition-all duration-300 transform translate-x-10 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${message}</span>`;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-x-10', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Finite State Machine States
+        const FSM = {
+            IDLE: 'IDLE',
+            DRAWING: 'DRAWING',
+            SHOOTING: 'SHOOTING',
+            COOLDOWN: 'COOLDOWN'
+        };
+
+        let currentState = FSM.IDLE;
+        let model = null;
+        let webcam = null;
+        let maxPredictions = 0;
+        let isWebcamRunning = false;
+        let animationFrameId = null;
+
+        // Dynamic Class Mapping Indices
+        let drawClassIndex = 0;
+        let releaseClassIndex = 1;
+
+        // FSM Debounce Thresholds
+        let drawFrameCount = 0;
+        let releaseFrameCount = 0;
+        const DRAW_FRAME_THRESHOLD = 3;    
+        const RELEASE_FRAME_THRESHOLD = 2; 
+        const CONFIDENCE_THRESHOLD = 0.80;
+
+        // Game Statistics
+        let score = 0;
+        let totalShots = 0;
+        let bullseyeCount = 0;
+
+        // Audio Context
+        let audioCtx = null;
+
+        // FPS Calculation
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let currentFps = 0;
+
+        const canvas = document.getElementById('archery-canvas');
+        const ctx = canvas.getContext('2d');
+        let canvasWidth = canvas.width;
+        let canvasHeight = canvas.height;
+
+        // Target Board Object
+        const target = {
+            x: 650,
+            y: 250,
+            baseY: 250,
+            radius: 100,
+            rings: [
+                { r: 0.1, score: 10, label: '10分！完美靶心！', color: '#fef08a' }, 
+                { r: 0.2, score: 9, label: '9分！黃心', color: '#fde047' },       
+                { r: 0.3, score: 8, label: '8分！紅心內環', color: '#f87171' },   
+                { r: 0.4, score: 7, label: '7分！紅心外環', color: '#ef4444' },   
+                { r: 0.5, score: 6, label: '6分！藍心內環', color: '#60a5fa' },   
+                { r: 0.6, score: 5, label: '5分！藍心外環', color: '#3b82f6' },   
+                { r: 0.7, score: 4, label: '4分！黑圈內環', color: '#475569' },   
+                { r: 0.8, score: 3, label: '3分！黑圈外環', color: '#334155' },   
+                { r: 0.9, score: 2, label: '2分！白圈內環', color: '#f1f5f9' },   
+                { r: 1.0, score: 1, label: '1分！白圈外環', color: '#e2e8f0' }    
+            ]
+        };
+
+        // Bow Object
+        const bow = {
+            x: 120,
+            y: 250,
+            height: 180,
+            pullBack: 0,       
+            targetPull: 0,
+            aimAngle: 0
+        };
+
+        // Aim Crosshair System
+        const crosshair = {
+            x: 650,
+            y: 250,
+            targetX: 650,
+            targetY: 250,
+            swayTime: 0
+        };
+
+        let arrows = [];
+        let particles = [];
+        let wind = 0;
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            if (container && canvas) {
+                const w = container.clientWidth || 600;
+                const h = container.clientHeight || 400;
+                canvas.width = w;
+                canvas.height = h;
+                canvasWidth = w;
+                canvasHeight = h;
+
+                target.x = Math.max(200, canvasWidth - 140);
+                target.baseY = canvasHeight / 2;
+                target.y = target.baseY;
+                bow.x = Math.min(100, canvasWidth * 0.2);
+                bow.y = canvasHeight / 2;
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function drawBackground() {
+            const grad = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+            grad.addColorStop(0, '#0f172a');
+            grad.addColorStop(0.7, '#1e1b4b');
+            grad.addColorStop(1, '#020617');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, canvasHeight - 35, canvasWidth, 35);
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, canvasHeight - 35);
+            ctx.lineTo(canvasWidth, canvasHeight - 35);
+            ctx.stroke();
+        }
+
+        function updateCrosshair() {
+            if (currentState === FSM.DRAWING) {
+                crosshair.swayTime += 0.012;
+                const offsetX = Math.sin(crosshair.swayTime * 1.1) * 75 + Math.cos(crosshair.swayTime * 2.3) * 30;
+                const offsetY = Math.sin(crosshair.swayTime * 1.5) * 80 + Math.cos(crosshair.swayTime * 0.8) * 35;
+
+                crosshair.targetX = target.x + offsetX;
+                crosshair.targetY = target.y + offsetY;
+            } else {
+                crosshair.targetX = target.x;
+                crosshair.targetY = target.y;
+            }
+
+            crosshair.x += (crosshair.targetX - crosshair.x) * 0.04;
+            crosshair.y += (crosshair.targetY - crosshair.y) * 0.04;
+        }
+
+        function drawCrosshair() {
+            ctx.save();
+            ctx.translate(crosshair.x, crosshair.y);
+
+            ctx.strokeStyle = (currentState === FSM.DRAWING) ? '#f59e0b' : 'rgba(245, 158, 11, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.arc(0, 0, 18, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.strokeStyle = (currentState === FSM.DRAWING) ? '#ef4444' : '#f59e0b';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-24, 0); ctx.lineTo(-6, 0);
+            ctx.moveTo(6, 0); ctx.lineTo(24, 0);
+            ctx.moveTo(0, -24); ctx.lineTo(0, -6);
+            ctx.moveTo(0, 6); ctx.lineTo(0, 24);
+            ctx.stroke();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, 0, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawBow() {
+            ctx.save();
+            ctx.translate(bow.x, bow.y);
+
+            bow.pullBack += (bow.targetPull - bow.pullBack) * 0.1;
+
+            const dx = crosshair.x - bow.x;
+            const dy = crosshair.y - bow.y;
+            const bowAngle = Math.atan2(dy, dx);
+            ctx.rotate(bowAngle);
+
+            ctx.strokeStyle = '#854d0e';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+
+            ctx.beginPath();
+            ctx.moveTo(0, -bow.height / 2);
+            ctx.quadraticCurveTo(35, 0, 0, bow.height / 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(12, -15);
+            ctx.lineTo(12, 15);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, -bow.height / 2);
+            ctx.lineTo(-bow.pullBack, 0);
+            ctx.lineTo(0, bow.height / 2);
+            ctx.stroke();
+
+            if (currentState === FSM.DRAWING || bow.pullBack > 2) {
+                drawArrowGraphic(-bow.pullBack, 0, 0);
+            }
+
+            ctx.restore();
+        }
+
+        function drawArrowGraphic(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-65, 0);
+            ctx.lineTo(0, 0);
+            ctx.stroke();
+
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-12, -4);
+            ctx.lineTo(-12, 4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(-65, 0);
+            ctx.lineTo(-57, -7);
+            ctx.lineTo(-50, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-65, 0);
+            ctx.lineTo(-57, 7);
+            ctx.lineTo(-50, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function spawnSparks(x, y, color, count = 15) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    decay: Math.random() * 0.03 + 0.02,
+                    color: color,
+                    size: Math.random() * 3 + 2
+                });
+            }
+        }
+
+        function updateAndDrawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= p.decay;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function renderGame() {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            drawBackground();
+            updateCrosshair();
+            drawTarget();
+            drawBow();
+            updateAndDrawArrows();
+            updateAndDrawParticles();
+            drawCrosshair();
+
+            requestAnimationFrame(renderGame);
+        }
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const soundStatus = document.getElementById('sound-status');
+            if(soundStatus) soundStatus.innerHTML = '<i class="fa-solid fa-volume-high"></i> 音效已開啟';
+            const overlay = document.getElementById('audio-enable-overlay');
+            if(overlay) overlay.style.display = 'none';
+        }
+
+        function enableAudio() {
+            initAudio();
+            showToast('音效功能已成功開啟！', 'success');
+        }
+
+        let drawOsc = null;
+        let drawGain = null;
+
+        function startBowDrawSound() {
+            if (!audioCtx) return;
+            try {
+                if (drawOsc) stopBowDrawSound();
+
+                drawOsc = audioCtx.createOscillator();
+                drawGain = audioCtx.createGain();
+
+                drawOsc.type = 'sawtooth';
+                drawOsc.frequency.setValueAtTime(80, audioCtx.currentTime);
+                drawOsc.frequency.exponentialRampToValueAtTime(180, audioCtx.currentTime + 0.8);
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, audioCtx.currentTime);
+
+                drawGain.gain.setValueAtTime(0.01, audioCtx.currentTime);
+                drawGain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.5);
+
+                drawOsc.connect(filter);
+                filter.connect(drawGain);
+                drawGain.connect(audioCtx.destination);
+
+                drawOsc.start();
+            } catch (e) {}
+        }
+
+        function stopBowDrawSound() {
+            if (drawGain && audioCtx) {
+                try {
+                    drawGain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                    setTimeout(() => {
+                        if (drawOsc) {
+                            drawOsc.stop();
+                            drawOsc.disconnect();
+                            drawOsc = null;
+                        }
+                    }, 100);
+                } catch(e) {}
+            }
+        }
+
+        function playWhooshSound() {
+            if (!audioCtx) return;
+            try {
+                const bufferSize = audioCtx.sampleRate * 0.2;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = audioCtx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.2);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                noise.start();
+            } catch(e){}
+        }
+
+        function playHitSound(isBullseye) {
+            if (!audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.15);
+
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+
+                if (isBullseye) {
+                    setTimeout(() => playBullseyeChime(), 80);
+                }
+            } catch(e){}
+        }
+
+        function playBullseyeChime() {
+            if (!audioCtx) return;
+            try {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+
+                    const startTime = audioCtx.currentTime + idx * 0.06;
+                    gain.gain.setValueAtTime(0.2, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.3);
+                });
+            } catch(e){}
+        }
+
+        async function loadModel() {
+            initAudio();
+            const urlInput = document.getElementById('model-url-input').value.trim();
+            const btn = document.getElementById('btn-load-model');
+
+            if (!urlInput) {
+                showToast('請輸入有效的 Teachable Machine 模型網址', 'warning');
+                return;
+            }
+
+            let modelURL = urlInput;
+            if (!modelURL.endsWith('/')) modelURL += '/';
+            const metadataURL = modelURL + 'metadata.json';
+            const modelPath = modelURL + 'model.json';
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> 載入中...';
+
+            try {
+                if (typeof tmImage === 'undefined') {
+                    throw new Error('Teachable Machine 套件尚未完全加載，請稍後再試。');
+                }
+
+                model = await tmImage.load(modelPath, metadataURL);
+                maxPredictions = model.getTotalClasses();
+
+                const drawSelect = document.getElementById('select-class-draw');
+                const releaseSelect = document.getElementById('select-class-release');
+                drawSelect.innerHTML = '';
+                releaseSelect.innerHTML = '';
+
+                const labels = model.getClassLabels();
+                let foundDrawIndex = -1;
+                let foundReleaseIndex = -1;
+
+                labels.forEach((label, index) => {
+                    const normalizedLabel = label.toLowerCase().replace(/[\s_]/g, '');
+                    if (foundDrawIndex === -1 && (normalizedLabel.includes('class1') || normalizedLabel.includes('draw') || normalizedLabel.includes('拉弓') || normalizedLabel.includes('張開') || normalizedLabel.includes('open'))) {
+                        foundDrawIndex = index;
+                    }
+                    if (foundReleaseIndex === -1 && (normalizedLabel.includes('class2') || normalizedLabel.includes('release') || normalizedLabel.includes('放箭') || normalizedLabel.includes('握拳') || normalizedLabel.includes('fist'))) {
+                        foundReleaseIndex = index;
+                    }
+
+                    const opt1 = new Option(`${index + 1}. ${label}`, index);
+                    const opt2 = new Option(`${index + 1}. ${label}`, index);
+                    drawSelect.add(opt1);
+                    releaseSelect.add(opt2);
+                });
+
+                drawClassIndex = (foundDrawIndex !== -1) ? foundDrawIndex : 0;
+                releaseClassIndex = (foundReleaseIndex !== -1) ? foundReleaseIndex : (labels.length > 1 ? 1 : 0);
+
+                drawSelect.value = drawClassIndex;
+                releaseSelect.value = releaseClassIndex;
+
+                drawSelect.onchange = (e) => { drawClassIndex = parseInt(e.target.value); };
+                releaseSelect.onchange = (e) => { releaseClassIndex = parseInt(e.target.value); };
+
+                document.getElementById('class-mapper-container').classList.remove('hidden');
+                document.getElementById('btn-toggle-cam').disabled = false;
+
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 已載入';
+                btn.classList.replace('bg-indigo-600', 'bg-emerald-600');
+
+                showToast('AI 模型載入成功！正在開啟鏡頭...', 'success');
+                startWebcam();
+
+            } catch (error) {
+                console.error('模型載入失敗:', error);
+                showToast('載入模型失敗！請檢查網址或網路狀況。', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> 重新載入';
+            }
+        }
+
+        async function startWebcam() {
+            if (isWebcamRunning) return;
+
+            const video = document.getElementById('webcam-video');
+            const placeholder = document.getElementById('webcam-placeholder');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 320, height: 240, facingMode: 'user' },
+                    audio: false
+                });
+                video.srcObject = stream;
+                video.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                isWebcamRunning = true;
+
+                document.getElementById('cam-dot').classList.replace('bg-slate-500', 'bg-emerald-500');
+                document.getElementById('cam-ping').classList.replace('bg-slate-400', 'bg-emerald-400');
+
+                predictLoop();
+            } catch (err) {
+                console.error('無法啟動 WebCam:', err);
+                showToast('無法存取視訊鏡頭，您仍可透過鍵盤 Space 鍵或點擊螢幕遊玩！', 'warning');
+            }
+        }
+
+        function toggleWebcam() {
+            if (isWebcamRunning) {
+                const video = document.getElementById('webcam-video');
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                video.classList.add('hidden');
+                document.getElementById('webcam-placeholder').classList.remove('hidden');
+                document.getElementById('cam-dot').classList.replace('bg-emerald-500', 'bg-slate-500');
+                document.getElementById('cam-ping').classList.replace('bg-emerald-400', 'bg-slate-400');
+                isWebcamRunning = false;
+                showToast('視訊鏡頭已關閉', 'info');
+            } else {
+                startWebcam();
+            }
+        }
+
+        async function predictLoop() {
+            if (!isWebcamRunning || !model) return;
+
+            const video = document.getElementById('webcam-video');
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const now = performance.now();
+                frameCount++;
+                if (now - lastTime >= 1000) {
+                    currentFps = frameCount;
+                    frameCount = 0;
+                    lastTime = now;
+                    document.getElementById('fps-counter').innerText = `FPS: ${currentFps}`;
+                }
+
+                const predictions = await model.predict(video);
+                updatePredictionUI(predictions);
+                processFSM(predictions);
+            }
+
+            animationFrameId = requestAnimationFrame(predictLoop);
+        }
+
+        function updatePredictionUI(predictions) {
+            const container = document.getElementById('prediction-list');
+            container.innerHTML = '';
+
+            predictions.forEach((pred, idx) => {
+                const isDrawClass = (idx === drawClassIndex);
+                const isReleaseClass = (idx === releaseClassIndex);
+                const prob = pred.probability;
+                const probPercent = (prob * 100).toFixed(1);
+                const isHighConf = prob >= CONFIDENCE_THRESHOLD;
+
+                let roleBadgeHtml = '';
+                if (isDrawClass) {
+                    roleBadgeHtml = `<span class="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded flex items-center gap-0.5 shrink-0"><i class="fa-solid fa-hand text-[8px]"></i> Class 1 (拉弓)</span>`;
+                } else if (isReleaseClass) {
+                    roleBadgeHtml = `<span class="px-1.5 py-0.2 text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded flex items-center gap-0.5 shrink-0"><i class="fa-solid fa-fist-raised text-[8px]"></i> Class 2 (放箭)</span>`;
+                }
+
+                let activeBorder = 'border-slate-800 bg-slate-900/80';
+                let barColor = 'bg-slate-600';
+                let percentBadgeStyle = 'bg-slate-800 text-slate-400 border-slate-700 font-bold';
+
+                if (isHighConf) {
+                    if (isDrawClass) {
+                        activeBorder = 'border-amber-400 bg-amber-950/40 pulse-glow-amber ring-1 ring-amber-500/50';
+                        barColor = 'bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-300';
+                        percentBadgeStyle = 'bg-amber-400 text-slate-950 border-amber-200 font-black shadow-lg shadow-amber-400/40 scale-105';
+                    } else if (isReleaseClass) {
+                        activeBorder = 'border-emerald-400 bg-emerald-950/40 pulse-glow-green ring-1 ring-emerald-500/50';
+                        barColor = 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-300';
+                        percentBadgeStyle = 'bg-emerald-400 text-slate-950 border-emerald-200 font-black shadow-lg shadow-emerald-400/40 scale-105';
+                    } else {
+                        activeBorder = 'border-slate-500 bg-slate-800';
+                        barColor = 'bg-slate-300';
+                        percentBadgeStyle = 'bg-slate-700 text-white border-slate-500 font-bold';
+                    }
+                } else if (prob > 0.3) {
+                    if (isDrawClass) {
+                        barColor = 'bg-amber-600';
+                        percentBadgeStyle = 'bg-amber-950 text-amber-300 border-amber-700 font-bold';
+                    } else if (isReleaseClass) {
+                        barColor = 'bg-emerald-600';
+                        percentBadgeStyle = 'bg-emerald-950 text-emerald-300 border-emerald-700 font-bold';
+                    }
+                }
+
+                const item = document.createElement('div');
+                item.className = `p-1.5 rounded-lg border transition-all duration-200 ${activeBorder}`;
+                item.innerHTML = `
+                    <div class="flex justify-between items-center mb-0.5">
+                        <div class="flex items-center gap-1 min-w-0">
+                            <span class="font-bold text-xs text-slate-100 truncate">${pred.className}</span>
+                            ${roleBadgeHtml}
+                        </div>
+                        <div class="px-1.5 py-0.5 rounded border font-tech text-xs tracking-wider transition-all duration-200 ${percentBadgeStyle}">
+                            ${probPercent}%
+                        </div>
+                    </div>
+                    <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800 shadow-inner">
+                        <div class="h-full ${barColor} transition-all duration-150 rounded-full shadow-md" style="width: ${probPercent}%"></div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function processFSM(predictions) {
+            if (predictions.length <= Math.max(drawClassIndex, releaseClassIndex)) return;
+
+            const drawProb = predictions[drawClassIndex].probability;
+            const releaseProb = predictions[releaseClassIndex].probability;
+
+            switch (currentState) {
+                case FSM.IDLE:
+                    if (drawProb >= CONFIDENCE_THRESHOLD) {
+                        drawFrameCount++;
+                        if (drawFrameCount >= DRAW_FRAME_THRESHOLD) {
+                            changeFSMState(FSM.DRAWING);
+                            drawFrameCount = 0;
+                        }
+                    } else {
+                        drawFrameCount = Math.max(0, drawFrameCount - 1);
+                    }
+                    break;
+
+                case FSM.DRAWING:
+                    bow.targetPull = 40;
+                    
+                    if (releaseProb >= CONFIDENCE_THRESHOLD) {
+                        releaseFrameCount++;
+                        if (releaseFrameCount >= RELEASE_FRAME_THRESHOLD) {
+                            changeFSMState(FSM.SHOOTING);
+                            releaseFrameCount = 0;
+                        }
+                    } else {
+                        releaseFrameCount = Math.max(0, releaseFrameCount - 1);
+                    }
+                    break;
+
+                case FSM.SHOOTING:
+                case FSM.COOLDOWN:
+                    break;
+            }
+        }
+
+        function changeFSMState(newState) {
+            currentState = newState;
+            const badge = document.getElementById('fsm-status-badge');
+            const lockOverlay = document.getElementById('video-overlay-lock');
+            const lockIcon = document.getElementById('lock-icon');
+
+            badge.className = "px-2.5 py-0.5 rounded-full text-[10px] font-tech font-bold border transition-all duration-300 ";
+
+            switch (newState) {
+                case FSM.IDLE:
+                    badge.innerText = "STATE: IDLE (待機)";
+                    badge.classList.add('bg-slate-800', 'text-slate-400', 'border-slate-700');
+                    lockOverlay.className = "absolute inset-0 pointer-events-none border-2 border-transparent transition-all duration-300 flex items-center justify-center";
+                    lockIcon.style.opacity = '0';
+                    bow.targetPull = 0;
+                    stopBowDrawSound();
+                    break;
+
+                case FSM.DRAWING:
+                    clearScorePopup(); 
+                    badge.innerText = "STATE: DRAWING (瞄準中)";
+                    badge.classList.add('bg-amber-950/80', 'text-amber-400', 'border-amber-500/50', 'pulse-glow-amber');
+                    lockOverlay.className = "absolute inset-0 pointer-events-none border-4 border-amber-500/60 transition-all duration-300 flex items-center justify-center bg-amber-500/10";
+                    lockIcon.style.opacity = '1';
+                    
+                    startBowDrawSound();
+                    generateWind();
+                    break;
+
+                case FSM.SHOOTING:
+                    badge.innerText = "STATE: SHOOTING (射擊！)";
+                    badge.classList.add('bg-emerald-950/80', 'text-emerald-400', 'border-emerald-500/50', 'pulse-glow-green');
+                    lockOverlay.className = "absolute inset-0 pointer-events-none border-4 border-emerald-500/80 transition-all duration-300 flex items-center justify-center bg-emerald-500/20";
+                    
+                    stopBowDrawSound();
+                    playWhooshSound();
+                    fireArrow();
+
+                    setTimeout(() => {
+                        changeFSMState(FSM.COOLDOWN);
+                    }, 50);
+                    break;
+
+                case FSM.COOLDOWN:
+                    badge.innerText = "STATE: COOLDOWN (準備下一次)";
+                    badge.classList.add('bg-indigo-950/80', 'text-indigo-400', 'border-indigo-500/50');
+                    lockOverlay.className = "absolute inset-0 pointer-events-none border-2 border-transparent transition-all duration-300 flex items-center justify-center";
+                    lockIcon.style.opacity = '0';
+
+                    setTimeout(() => {
+                        changeFSMState(FSM.IDLE);
+                    }, 350);
+                    break;
+            }
+        }
+
+        function generateWind() {
+            wind = (Math.random() * 3 - 1.5).toFixed(1);
+            document.getElementById('wind-indicator').innerText = `${wind > 0 ? '+' : ''}${wind} MPH`;
+        }
+
+        function fireArrow() {
+            totalShots++;
+            document.getElementById('ui-shots').innerText = totalShots;
+
+            const windDriftY = parseFloat(wind) * 10;
+            const impactX = crosshair.x;
+            const impactY = crosshair.y + windDriftY;
+
+            const distFromCenter = Math.hypot(impactX - target.x, impactY - target.y);
+
+            let earnedPoints = 0;
+            let hitLabel = "0分！脫靶！";
+            let isBullseye = false;
+
+            for (let ring of target.rings) {
+                if (distFromCenter <= target.radius * ring.r) {
+                    earnedPoints = ring.score;
+                    hitLabel = ring.label;
+                    if (earnedPoints === 10) {
+                        isBullseye = true;
+                    }
+                    break;
+                }
+            }
+
+            arrows.push({
+                x: bow.x + 30,
+                y: bow.y,
+                startX: bow.x + 30,
+                startY: bow.y,
+                targetX: impactX,
+                targetY: impactY,
+                earnedPoints: earnedPoints,
+                hitLabel: hitLabel,
+                isBullseye: isBullseye,
+                progress: 0,
+                speed: 0.07,
+                stuck: false,
+                stuckOffsetX: 0,
+                stuckOffsetY: 0
+            });
+
+            bow.targetPull = 0;
+        }
+
+        function drawTarget() {
+            ctx.save();
+            ctx.translate(target.x, target.y);
+
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(0, canvasHeight - target.y - 35, 35, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            for (let i = target.rings.length - 1; i >= 0; i--) {
+                const ring = target.rings[i];
+                ctx.fillStyle = ring.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, target.radius * ring.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(0, 0, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function updateAndDrawArrows() {
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                let arrow = arrows[i];
+
+                if (!arrow.stuck) {
+                    arrow.progress += arrow.speed;
+
+                    const curX = arrow.startX + (arrow.targetX - arrow.startX) * arrow.progress;
+                    const curY = arrow.startY + (arrow.targetY - arrow.startY) * arrow.progress - Math.sin(arrow.progress * Math.PI) * 20;
+
+                    const dx = arrow.targetX - arrow.startX;
+                    const dy = arrow.targetY - arrow.startY;
+                    const angle = Math.atan2(dy, dx);
+
+                    drawArrowGraphic(curX, curY, angle);
+
+                    if (arrow.progress >= 1.0) {
+                        arrow.stuck = true;
+                        arrow.stuckOffsetX = arrow.targetX - target.x;
+                        arrow.stuckOffsetY = arrow.targetY - target.y;
+
+                        processArrowHit(arrow);
+                    }
+                } else {
+                    const arrowX = target.x + arrow.stuckOffsetX;
+                    const arrowY = target.y + arrow.stuckOffsetY;
+                    drawArrowGraphic(arrowX, arrowY, 0);
+                }
+            }
+
+            if (arrows.length > 10) arrows.shift();
+        }
+
+        function processArrowHit(arrow) {
+            score += arrow.earnedPoints;
+            if (arrow.isBullseye) bullseyeCount++;
+
+            document.getElementById('ui-score').innerText = score;
+            document.getElementById('ui-bullseye').innerText = bullseyeCount;
+
+            playHitSound(arrow.isBullseye);
+            spawnSparks(arrow.targetX, arrow.targetY, arrow.earnedPoints > 0 ? (arrow.isBullseye ? '#fef08a' : '#60a5fa') : '#94a3b8', arrow.isBullseye ? 30 : 12);
+            showScorePopup(arrow.targetX, arrow.targetY, arrow.hitLabel, arrow.isBullseye, arrow.earnedPoints);
+        }
+
+        function clearScorePopup() {
+            const container = document.getElementById('score-popup-layer');
+            if (container) container.innerHTML = '';
+        }
+
+        function showScorePopup(x, y, text, isBullseye, points) {
+            clearScorePopup();
+
+            const container = document.getElementById('score-popup-layer');
+            if (!container) return;
+
+            const popup = document.createElement('div');
+
+            let colorClass = 'bg-slate-900/95 text-slate-300 border-slate-700 shadow-slate-900/50';
+            if (points >= 9) colorClass = 'bg-yellow-950/95 text-yellow-300 border-yellow-500/80 pulse-glow-amber text-sm font-black shadow-yellow-500/20';
+            else if (points >= 7) colorClass = 'bg-red-950/95 text-red-400 border-red-500/80 pulse-glow-red text-xs font-bold shadow-red-500/20';
+            else if (points >= 5) colorClass = 'bg-blue-950/95 text-blue-400 border-blue-500/80 text-xs font-bold shadow-blue-500/20';
+            else if (points > 0) colorClass = 'bg-emerald-950/95 text-emerald-400 border-emerald-500/80 text-xs font-semibold shadow-emerald-500/20';
+
+            popup.className = `absolute font-tech pointer-events-none transform -translate-x-1/2 -translate-y-1/2 px-3.5 py-1.5 rounded-xl border backdrop-blur-md shadow-xl transition-all duration-300 ease-out ${colorClass}`;
+            
+            const posX = Math.min(Math.max(x, 100), canvasWidth - 100);
+            const posY = Math.min(Math.max(y - 45, 30), canvasHeight - 30);
+            
+            popup.style.left = `${posX}px`;
+            popup.style.top = `${posY}px`;
+            popup.style.opacity = '0';
+            popup.style.transform = 'translate(-50%, -30%) scale(0.85)';
+            popup.innerHTML = `<div class="flex items-center gap-1.5">
+                ${isBullseye ? '<i class="fa-solid fa-crown text-yellow-400 animate-bounce text-xs"></i>' : '<i class="fa-solid fa-bullseye text-xs"></i>'}
+                <span>${text}</span>
+            </div>`;
+
+            container.appendChild(popup);
+
+            requestAnimationFrame(() => {
+                popup.style.opacity = '1';
+                popup.style.transform = 'translate(-50%, -50%) scale(1)';
+            });
+        }
+
+        function resetGameStats() {
+            score = 0;
+            totalShots = 0;
+            bullseyeCount = 0;
+            arrows = [];
+            particles = [];
+            clearScorePopup();
+            document.getElementById('ui-score').innerText = '0';
+            document.getElementById('ui-shots').innerText = '0';
+            document.getElementById('ui-bullseye').innerText = '0';
+            showToast('得分與記錄已重設', 'info');
+        }
+
+        function toggleInstructions() {
+            const content = document.getElementById('instructions-content');
+            const chevron = document.getElementById('instructions-chevron');
+            content.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+
+        // Manual Interaction Handlers
+        function handleManualStart(e) {
+            if (e) e.preventDefault();
+            initAudio();
+            if (currentState === FSM.IDLE) {
+                changeFSMState(FSM.DRAWING);
+            }
+        }
+
+        function handleManualEnd(e) {
+            if (e) e.preventDefault();
+            if (currentState === FSM.DRAWING) {
+                changeFSMState(FSM.SHOOTING);
+            }
+        }
+
+        // Keyboard Controls
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                initAudio();
+                if (currentState === FSM.IDLE) {
+                    changeFSMState(FSM.DRAWING);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (currentState === FSM.DRAWING) {
+                    changeFSMState(FSM.SHOOTING);
+                }
+            }
+        });
+
+        // Touch & Canvas Mouse Controls
+        const canvasContainer = document.getElementById('canvas-container');
+        canvasContainer.addEventListener('mousedown', (e) => {
+            if (e.target.tagName !== 'BUTTON') handleManualStart(e);
+        });
+        window.addEventListener('mouseup', handleManualEnd);
+        canvasContainer.addEventListener('touchstart', (e) => {
+            if (e.target.tagName !== 'BUTTON') handleManualStart(e);
+        }, { passive: false });
+        window.addEventListener('touchend', handleManualEnd);
+
+        window.onload = () => {
+            setTimeout(resizeCanvas, 50);
+            renderGame();
+            showToast('遊戲系統已就緒！可按住 Space 鍵或點擊畫面試玩射箭。', 'success');
+        };
+    </script>
+</body>
+</html>
