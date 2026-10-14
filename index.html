@@ -195,13 +195,13 @@
                 </div>
 
                 <!-- Video Display Container -->
-                <div class="relative w-full aspect-video max-h-[85px] sm:max-h-[100px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center shrink-0 mx-auto">
+                <div class="relative w-full aspect-video max-h-[160px] sm:max-h-[200px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex items-center justify-center shrink-0 mx-auto transition-all">
                     <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-cover transform -scale-x-100 hidden"></video>
                     
-                    <div id="webcam-placeholder" class="text-center p-1 space-y-0.5">
-                        <i class="fa-solid fa-gamepad text-base text-indigo-400"></i>
-                        <p class="text-[10px] text-slate-300 font-bold">免鏡頭！可直接鍵盤/觸控試玩</p>
-                        <p class="text-[9px] text-slate-500">點擊「載入模型」可啟動 AI 手勢辨識</p>
+                    <div id="webcam-placeholder" class="text-center p-2 space-y-1">
+                        <i class="fa-solid fa-gamepad text-xl text-indigo-400"></i>
+                        <p class="text-xs text-slate-300 font-bold">免鏡頭！可直接鍵盤/觸控試玩</p>
+                        <p class="text-[10px] text-slate-500">點擊「載入模型」可啟動 AI 手勢辨識</p>
                     </div>
 
                     <div id="video-overlay-lock" class="absolute inset-0 pointer-events-none border-2 border-transparent transition-all duration-300 flex items-center justify-center">
